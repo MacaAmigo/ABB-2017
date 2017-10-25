@@ -10,7 +10,7 @@ typedef struct nodo{
 	const char* clave;
 	void* valor;
 	struct nodo *izq;
-  	struct nodo *der;
+  struct nodo *der;
 }nodo_t;
 
 struct abb{
@@ -69,6 +69,52 @@ void* nodo_borrar(nodo_t **nodo, const char *clave,  abb_t* abb){
 	return NULL;
 }
 
+/*Recibe un arbol, un nodo actual y el nodo a insertar y lo inserta en el arbol.
+En caso de ya encontrarse un nodo con dicha clave, lo libera y guarda el dato en el
+nodo antiguo.*/
+void nodo_insertar(abb_t* abb,nodo_t* actual,nodo_t* nodo){
+	if (!abb->raiz){
+		abb->raiz=nodo;
+		abb->cantidad++;
+		return;
+	}
+	int relacion=abb->abb_comparar_clave(actual->clave,nodo->clave);
+	if(relacion>0){
+		if(!actual->der){
+			actual->der=nodo;
+			abb->cantidad++;
+			return;
+		}
+		return nodo_insertar(abb,actual->der,nodo);
+	}
+	if(relacion<0){
+		if(!actual->izq){
+			actual->izq=nodo;
+			abb->cantidad++;
+			return;
+		}
+		return nodo_insertar(abb,actual->izq,nodo);
+	}
+	void* dato=nodo->valor;
+	actual->dato=nodo->valor;
+	if(abb->destruir_dato)
+		abb->destruir_dato(dato);
+	free(nodo->clave);
+	free(nodo);
+	return;
+}
+
+void nodos_destruir(abb_t* abb,nodo_t* actual){
+	nodo_t* nodo_der=actual->der;
+	nodo_t* nodo_izq=actual->izq;
+	if(abb->destruir_dato)
+		abb->destruir_dato(actual->valor);
+	free(actual->clave);
+	free(actual);
+	nodos_destruir(abb,nodo_der);
+	nodos_destruir(abb,nodo_izq);
+	return;
+}
 
 /******************************************************************************
 *                          Primitivas del ABB                                  *
@@ -88,6 +134,17 @@ abb_t* abb_crear(abb_comparar_clave_t cmp, abb_destruir_dato_t destruir_dato){
 }
 
 bool abb_guardar(abb_t *arbol, const char *clave, void *dato);
+	nodo_t* nodo_nuevo=malloc(sizeof(nodo_t));
+	if(!nodo_nuevo)
+		return false;
+	nodo_nuevo->clave=strdup(clave);
+	if(!nodo_nuevo->clave){
+		free(nodo_nuevo);
+		return false;
+	}
+	nodo_nuevo->dato=dato;
+	nodo_insertar(arbol,arbol->raiz,nodo_nuevo);
+	return true;
 
 
 void *abb_borrar(abb_t *arbol, const char *clave){
@@ -96,7 +153,10 @@ void *abb_borrar(abb_t *arbol, const char *clave){
 	return nodo_borrar(&arbol->raiz, clave, arbol);
 }
 
-void *abb_obtener(const abb_t *arbol, const char *clave);
+void *abb_obtener(const abb_t *arbol, const char *clave){
+	nodo_t* nodo=encontrar_nodo(arbol,clave);
+	return nodo ? nodo->valor : NULL;
+}
 
 bool abb_pertenece(const abb_t *arbol, const char *clave){
   nodo_t* nodo = encontrar_nodo(arbol->raiz, clave, arbol->abb_comparar_clave);
@@ -108,7 +168,12 @@ size_t abb_cantidad(abb_t *arbol){
   return arbol->cantidad;
 }
 
-void abb_destruir(abb_t *arbol);
+void abb_destruir(abb_t *arbol){
+	if(arbol->raiz)
+		destruir_nodos(arbol,arbol->raiz);
+	free(arbol);
+	return;
+}
 
 /***********************************************************************
 *                     ESTRUCTURA DE  ITER ABB                          *
@@ -121,15 +186,59 @@ struct abb_iter{
 *                  Funciones de iteradores del ABB                   *
 *********************************************************************/
 
-abb_iter_t *abb_iter_in_crear(const abb_t *arbol);
+/*Recibe una pila y un nodo. Apila recursivamente todos los hijos izquierdos de dicho
+nodo.*/
+bool apilar_hijos_izq(pila_t* pila, nodo_t* actual){
+	if(!actual)
+		return false;
+	if(!pila_apilar(pila, actual))
+		return false;
+	if(actual->izq)
+		return apilar_hijos_izq(pila,actual->izq);
+	return true;
+}
 
-bool abb_iter_in_avanzar(abb_iter_t *iter);
+abb_iter_t *abb_iter_in_crear(const abb_t *arbol){
+	abb_iter_t* iter=malloc(sizeof(abb_iter));
+	if(!iter)
+		return NULL;
+	iter->pila=pila_crear();
+	if(!pila){
+		free(iter);
+		return NULL;
+	}
+	if(!apilar_hijos_izq(pila,arbol,arbol->raiz)){
+		pila_destruir(pila);
+		free(iter);
+		return NULL;
+	}
+	return iter;
+}
 
-const char *abb_iter_in_ver_actual(const abb_iter_t *iter);
+bool abb_iter_in_avanzar(abb_iter_t *iter){
+	if(pila_esta_vacia(iter->pila))
+		return false;
+	nodo_t* nodo=pila_desapilar(iter->pila);
+	pila_apilar(pila,nodo->der);
+	apilar_hijos_izq(iter->pila,nodo->der);//Que hacemos si apilar falla??
+	return true;
 
-bool abb_iter_in_al_final(const abb_iter_t *iter);
+}
 
-void abb_iter_in_destruir(abb_iter_t* iter);
+const char *abb_iter_in_ver_actual(const abb_iter_t *iter){
+	nodo_t* nodo=pila_ver_tope(iter->pila);
+	return nodo ? nodo->clave : NULL;
+}
+
+bool abb_iter_in_al_final(const abb_iter_t *iter){
+	return pila_esta_vacia(iter->pila);
+}
+
+void abb_iter_in_destruir(abb_iter_t* iter){
+	pila_destruir(iter->pila);
+	free(iter);
+	return;
+}
 
 /***********************************************************************
 *                     ESTRUCTURA DE  ITER INTERNO ABB                  *

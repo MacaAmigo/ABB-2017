@@ -104,6 +104,7 @@ void nodo_insertar(abb_t* abb,nodo_t* actual,nodo_t* nodo){
 	return;
 }
 
+/*Recibe un abb y un nodo actual y destruye todos los nodos del arbol*/
 void nodos_destruir(abb_t* abb,nodo_t* actual){
 	nodo_t* nodo_der=actual->der;
 	nodo_t* nodo_izq=actual->izq;
@@ -243,7 +244,23 @@ void abb_iter_in_destruir(abb_iter_t* iter){
 /***********************************************************************
 *                     ESTRUCTURA DE  ITER INTERNO ABB                  *
 ***********************************************************************/
-
+/*Dado un nodo iterar de forma inorder todo el arbol asociado a dicho nodo */
+void iterar_nodo(nodo_t* nodo,bool visitar(const char*, void* , void*),void* extra){
+	if(!nodo)
+		return;
+	iterar_nodo(nodo->izq,visitar,extra);
+	if(!visitar(nodo->clave,nodo->valor,extra))
+		return;
+	iterar_nodo(nodo->der,visitar,extra);
+	return;
+}
 
 /* Iterador interno in order.*/
-void abb_in_order(abb_t *arbol, bool visitar(const char *, void *, void *), void *extra);
+void abb_in_order(abb_t *arbol, bool visitar(const char *, void *, void *), void *extra){
+	if(!arbol->raiz)
+		return;
+	if(!visitar)
+		return;
+	iterar_nodo(arbol->raiz,visitar,extra);
+	return;
+}

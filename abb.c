@@ -40,33 +40,66 @@ nodo_t* encontrar_nodo(nodo_t *nodo, const char *clave,  abb_comparar_clave_t ab
   	}
   	return NULL;
 }
-// Función recursiva que recorre devuelve el valor del elemento a borrar.
-// En caso de error, devuelve NULL.
-// Pre: El abb fue creado. Recibe puntero a nodo desde donde empezar a buscar
-// lugar y recibe la clave.
 
-void* nodo_borrar(nodo_t **nodo, const char *clave,  abb_t* abb){
-	if (abb->abb_comparar_clave((*nodo)->clave, clave) < 0){
-		return nodo_borrar(&(*nodo)->der, clave, abb);
-	 }
-	else if (abb->abb_comparar_clave((*nodo)->clave, clave) > 0){
-		return nodo_borrar(&(*nodo)->izq, clave, abb);
-	 }
-	else if (abb->abb_comparar_clave((*nodo)->clave, clave) == 0)	{
-		nodo_t* aux = *nodo;
-		void* valor = aux->valor;
-		free((char*)(*nodo)->clave);
-		if (!(*nodo)->izq)
-			*nodo = (*nodo)->der;
-		else if (!(*nodo)->der)
-			*nodo = (*nodo)->izq;
-		else
-			reemplazar_nodo(&(*nodo)->izq, &aux);
+/*Recibe un nodo padre, el nodo actual y el nodo nuevo. Reemplaza la posicion
+del nodo actual con el nodo nuevo.
+  Pre: la clave del nodo nuevo es mayor que la del nodo actual si la clave del nodo
+actual es mayor a la del padre (analogamente para el caso en que la clave del nodo
+nuevo es menor que la del padre)*/
+void reemplazar_hijo(abb_t* abb,nodo_t* padre, nodo_t* nodo_actual, nodo_t* nodo_nuevo){
+  if(!padre){
+    abb->raiz=nodo_nuevo;
+    if(nodo_actual->izq)
+      nodo_nuevo->izq=nodo_actual->izq;
+  }
+  else if(abb->abb_comparar_clave(padre->clave,nodo_actual->clave)>0){
+    padre->izq=nodo_nuevo;
+  }
+  else{
+    padre->der=nodo_nuevo;
+  }
+  return;
+}
 
-		free(aux);
-		return valor;
-	}
-	return NULL;
+/*Recibe un nodo y devuelve el minimo del arbol asociado a ese nodo*/
+nodo_t* nodo_minimo(nodo_t* nodo){
+  nodo_t* actual=nodo;
+  while(actual->izq){
+    actual=nodo->izq;
+  }
+  return actual;
+}
+
+/*Recibe un abb, un nodo padre, nodo y una clave. Borra el nodo asociado a esa clave
+y devuelve el valor. En caso de no encontrarse el nodo devuelve NULL.*/
+void* nodo_borrar(abb_t* abb,nodo_t* padre,nodo_t* nodo, const char* clave){
+  if(!nodo)
+    return NULL;
+  int relacion=abb->abb_comparar_clave(clave, nodo->clave);
+  if(relacion<0){
+    return nodo_borrar(abb,nodo,nodo->izq,clave);
+  }
+  if(relacion>0){
+    return nodo_borrar(abb,nodo,nodo->der,clave);
+  }
+  void* dato=nodo->valor;
+  if(!nodo->der && !nodo->izq ){
+    reemplazar_hijo(abb,padre,nodo,NULL);
+  }
+  else if(!nodo->der){
+    reemplazar_hijo(abb,padre,nodo,nodo->izq);
+  }
+  else if(!nodo->izq){
+    reemplazar_hijo(abb,padre,nodo,nodo->der);
+  }
+  else{
+    nodo_t* nodo_nuevo=nodo_minimo(nodo->der);
+    reemplazar_hijo(abb,padre,nodo,nodo_nuevo);
+  }
+  free(nodo->clave);
+  free(nodo);
+  abb->cantidad--;
+  return dato;
 }
 
 /*Recibe un arbol, un nodo actual y el nodo a insertar y lo inserta en el arbol.
@@ -79,7 +112,7 @@ void nodo_insertar(abb_t* abb,nodo_t* actual,nodo_t* nodo){
 		return;
 	}
 	int relacion=abb->abb_comparar_clave(actual->clave,nodo->clave);
-	if(relacion>0){
+	if(relacion<0){
 		if(!actual->der){
 			actual->der=nodo;
 			abb->cantidad++;
@@ -88,7 +121,7 @@ void nodo_insertar(abb_t* abb,nodo_t* actual,nodo_t* nodo){
 		nodo_insertar(abb,actual->der,nodo);
 		return;
 	}
-	if(relacion<0){
+	if(relacion>0){
 		if(!actual->izq){
 			actual->izq=nodo;
 			abb->cantidad++;
@@ -108,7 +141,9 @@ void nodo_insertar(abb_t* abb,nodo_t* actual,nodo_t* nodo){
 
 /*Recibe un abb y un nodo actual y destruye todos los nodos del arbol*/
 void destruir_nodos(abb_t* abb,nodo_t* actual){
-	nodo_t* nodo_der=actual->der;
+  if(!actual)
+    return;
+  nodo_t* nodo_der=actual->der;
 	nodo_t* nodo_izq=actual->izq;
 	if(abb->destruir_dato)
 		abb->destruir_dato(actual->valor);
@@ -146,14 +181,16 @@ bool abb_guardar(abb_t *arbol, const char *clave, void *dato){
 		return false;
 	}
 	nodo_nuevo->valor=dato;
+  nodo_nuevo->der=NULL;
+  nodo_nuevo->izq=NULL;
 	nodo_insertar(arbol,arbol->raiz,nodo_nuevo);
 	return true;
 }
 
 void *abb_borrar(abb_t *arbol, const char *clave){
-	if (!abb_pertenece(arbol, clave)) return NULL;
-	arbol->cantidad--;
-	return nodo_borrar(&arbol->raiz, clave, arbol);
+	if(!arbol->raiz)
+    return NULL;
+  return nodo_borrar(arbol,NULL,arbol->raiz,clave);
 }
 
 void *abb_obtener(const abb_t *arbol, const char *clave){
@@ -172,8 +209,7 @@ size_t abb_cantidad(abb_t *arbol){
 }
 
 void abb_destruir(abb_t *arbol){
-	if(arbol->raiz)
-		destruir_nodos(arbol,arbol->raiz);
+	destruir_nodos(arbol,arbol->raiz);
 	free(arbol);
 	return;
 }
@@ -223,7 +259,7 @@ bool abb_iter_in_avanzar(abb_iter_t *iter){
 		return false;
 	nodo_t* nodo=pila_desapilar(iter->pila);
 	pila_apilar(iter->pila,nodo->der);
-	apilar_hijos_izq(iter->pila,nodo->der);//Que hacemos si apilar falla??
+	apilar_hijos_izq(iter->pila,nodo->der);
 	return true;
 
 }

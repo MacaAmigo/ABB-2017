@@ -246,6 +246,8 @@ abb_iter_t *abb_iter_in_crear(const abb_t *arbol){
 		free(iter);
 		return NULL;
 	}
+  if(!arbol->raiz)
+    return iter;
 	if(!apilar_hijos_izq(iter->pila,arbol->raiz)){
 		pila_destruir(iter->pila);
 		free(iter);

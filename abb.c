@@ -46,7 +46,7 @@ del nodo actual con el nodo nuevo.
   Pre: la clave del nodo nuevo es mayor que la del nodo actual si la clave del nodo
 actual es mayor a la del padre (analogamente para el caso en que la clave del nodo
 nuevo es menor que la del padre)*/
-void reemplazar_hijo(abb_t* abb,nodo_t* padre, nodo_t* nodo_actual, nodo_t* nodo_nuevo){
+/*void reemplazar_hijo(abb_t* abb,nodo_t* padre, nodo_t* nodo_actual, nodo_t* nodo_nuevo){
   if(!padre){
     abb->raiz=nodo_nuevo;
     if(nodo_actual->izq)
@@ -59,33 +59,83 @@ void reemplazar_hijo(abb_t* abb,nodo_t* padre, nodo_t* nodo_actual, nodo_t* nodo
     padre->der=nodo_nuevo;
   }
   return;
-}
+}*/
 
 /*Recibe un nodo y devuelve el minimo del arbol asociado a ese nodo*/
-nodo_t* nodo_minimo(nodo_t* nodo){
+/*nodo_t* nodo_minimo(nodo_t* nodo){
   nodo_t* actual=nodo;
   while(actual->izq){
     actual=nodo->izq;
   }
   return actual;
+}*/
+void reemplazar_nodo(nodo_t **nodo, nodo_t **aux){
+  if (!(*nodo)->der){
+		(*aux)->clave = (*nodo)->clave;
+		(*aux)->valor = (*nodo)->valor;
+		*aux = *nodo;
+		*nodo = (*nodo)->izq;
+  }
+  else
+  	reemplazar_nodo(&(*nodo)->der, aux);
+}
+// Función recursiva que recorre devuelve el dato a borrar.
+// Pre: El abb fue creado. Recibe puntero a nodo desde donde empezar a buscar,
+// Recibe la clave y el abb.
+
+void* nodo_borrar(nodo_t **nodo, const char *clave,  abb_t* abb){
+	if (abb->abb_comparar_clave((*nodo)->clave, clave) < 0){
+		return nodo_borrar(&(*nodo)->der, clave, abb);
+	 }
+	else if (abb->abb_comparar_clave((*nodo)->clave, clave) > 0){
+		return nodo_borrar(&(*nodo)->izq, clave, abb);
+	 }
+	else if (abb->abb_comparar_clave((*nodo)->clave, clave) == 0)	{
+		nodo_t* aux = *nodo;
+		void* valor = aux->valor;
+		free((char*)(*nodo)->clave);
+		if (!(*nodo)->izq)
+			*nodo = (*nodo)->der;
+		else if (!(*nodo)->der)
+			*nodo = (*nodo)->izq;
+		else
+			reemplazar_nodo(&(*nodo)->izq, &aux);
+
+		free(aux);
+		return valor;
+	}
+	return NULL;
 }
 
 /*Recibe un abb, un nodo padre, nodo y una clave. Borra el nodo asociado a esa clave
 y devuelve el valor. En caso de no encontrarse el nodo devuelve NULL.*/
-void* nodo_borrar(abb_t* abb,nodo_t* padre,nodo_t* nodo, const char* clave){
-  if(!nodo)
-    return NULL;
-  int relacion=abb->abb_comparar_clave(clave, nodo->clave);
-  if(relacion<0){
-    return nodo_borrar(abb,nodo,nodo->izq,clave);
-  }
-  if(relacion>0){
+/*void* nodo_borrar(abb_t* abb,nodo_t* padre,nodo_t* nodo, const char* clave){
+  if(!nodo)    return NULL;
+  if(abb->abb_comparar_clave(clave, nodo->clave)<0){
     return nodo_borrar(abb,nodo,nodo->der,clave);
   }
-  void* dato=nodo->valor;
-  if(!nodo->der && !nodo->izq ){
-    reemplazar_hijo(abb,padre,nodo,NULL);
+  if(abb->abb_comparar_clave(clave, nodo->clave)>0){
+    return nodo_borrar(abb,nodo,nodo->izq,clave);
   }
+  else if (abb->abb_comparar_clave((*nodo)->clave, clave) == 0)	{
+		nodo_t* aux = *nodo;
+		void* valor = aux->valor;
+		free((char*)(*nodo)->clave);
+		if (!(*nodo)->izq)
+			*nodo = (*nodo)->der;
+		else if (!(*nodo)->der)
+			*nodo = (*nodo)->izq;
+		else
+			reemplazar_nodo(&(*nodo)->izq, &aux);
+
+		free(aux);
+		return valor;
+	}
+
+	void* valor = nodo->valor;
+  	if(!nodo->der && !nodo->izq ){
+    	reemplazar_hijo(abb,padre,nodo,NULL);
+  	}
   else if(!nodo->der){
     reemplazar_hijo(abb,padre,nodo,nodo->izq);
   }
@@ -101,8 +151,7 @@ void* nodo_borrar(abb_t* abb,nodo_t* padre,nodo_t* nodo, const char* clave){
   abb->cantidad--;
   return dato;
 }
-
-// Crea un nodo con el valor y la clave recibida. Y referencias a nodo izquierdo
+*/// Crea un nodo con el valor y la clave recibida. Y referencias a nodo izquierdo
 // y derecho inicializados en NULL.
 // Devuelve NULL en caso de error.
 // Pre: recibe una clave y un valor.
@@ -172,10 +221,10 @@ bool abb_guardar(abb_t *arbol, const char *clave, void *dato){
 }
 
 void *abb_borrar(abb_t *arbol, const char *clave){
-	if(!arbol->raiz)    return NULL;
-	return nodo_borrar(arbol,NULL,arbol->raiz,clave);
+	if (!abb_pertenece(arbol, clave)) return NULL;
+	arbol->cantidad--;
+	return nodo_borrar(&arbol->raiz, clave, arbol);
 }
-
 void *abb_obtener(const abb_t *arbol, const char *clave){
 	nodo_t* nodo=encontrar_nodo(arbol->raiz,clave,arbol->abb_comparar_clave);
 	return nodo ? nodo->valor : NULL;
